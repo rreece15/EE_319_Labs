@@ -70,23 +70,31 @@ Start
 	 NOP
 	 
 	 LDR R0, =GPIO_PORTE_AFSEL_R
-	 LDR R1, [R0]
-	 ORR R1, R1, #0x06
-	 STR R1, [R0]
-	 
+   	 LDR R1, [R0]
+   	 BIC R1, #0x06
+   	 STR R1, [R0]
+
+	
 	 LDR R0, =GPIO_PORTF_AFSEL_R
-	 LDR R1, [R0]
-	 ORR R1, R1, #0x10
-	 STR R1, [R0]
+   	 LDR R1, [R0]
+   	 BIC R1, #0x10
+   	 STR R1, [R0]
+
+	 
+	 LDR R0, =GPIO_PORTF_PUR_R
+   	 LDR R1, [R0]
+   	 ORR R1, #0x10
+   	 STR R1, [R0]
+
 
 	 LDR R0, =GPIO_PORTE_DEN_R
 	 LDR R1, [R0] 
-	 ORR R1, #0x6 ;Enable PE1, PE2
+	 ORR R1, #0x06 ;Enable PE1, PE2
 	 STR R1, [R0]
 	 
 	 LDR R0, =GPIO_PORTF_DEN_R
 	 LDR R1, [R0]
-	 ORR R1, #0x10 ;Enable PF5
+	 ORR R1, #0x10 ;Enable PF4
 	 STR R1, [R0]
 	 
 	 LDR R0, =GPIO_PORTF_DIR_R
@@ -96,52 +104,126 @@ Start
 	 
 	 LDR R0, =GPIO_PORTE_DIR_R
 	 LDR R1, [R0]
-	 ORR R1, #0x4 ;PE2 output
-	 BIC R1, #0x2 ;PE1 input
+	 ORR R1, #0x04 ;PE2 output
+	 BIC R1, #0x02 ;PE1 input
 	 STR R1, [R0] 
 	 
-	 LDR R0, =GPIO_PORTE_DATA_R
-	 LDR R1, [R0]
-	 ORR R1, #0x04
-	 STR R1, [R0]
-	 LDR R3, =#12000000
-	 LOP SUBS R3, R3, #1
-	 CMP R3, #0
-	 BNE LOP
-	 
-	 ; BL CC
-	 LDR R1, [R2]
-	 EOR R1, #0x04
-	 STR R1, [R0]
-	 
-	 LDR R6, #28000000
-	 MOP SUBS R6, R6, #1
-	 CMP R3, #0
-	 BNE MOP
-	 
-	 CC LDR R0, =GPIO_PORTE_DATA_R;This is used to check PE1 and to change the delays if there is input to it (the PE1 stuff)
-	 LDR R4, [R0]
-	 AND R5, R4, #0x02
-	 CMP R5, #2
-	 BNE CC
-	 LDR R7, =#4000000 ;checking the smaller deay if it is at 50
-	 CMP R4, R7
-	 BNE GO
-	 GO LDR R8, =#8000000
-	 ADD R3, R3, R8
-	 LDR R9, =#8000000
-	 SUBS R4, R4, R9
-	 BX LR
+	 AND R2, R2, #0
+	 AND R5, R5, #0
+	 LDR R10, =800000
+  
     
 
      CPSIE  I    ; TExaS voltmeter, scope runs on interrupts
 loop  
 ; main engine goes here
+; R6 WILL BE THE TIME IT IS ON WHILE R3 WILL BE TIME IT IS OFF
+
+	 
+	
+	 LDR R0, =GPIO_PORTE_DATA_R
+	 LDR R1, [R0]
+	 ORR R1, #0x04
+	 STR R1, [R0]
+	
+	 
+	 BL DELAY30
+	 
+	 LDR R1, [R0]
+	 BIC R1, #0x04
+	 STR R1, [R0]
+	 
+	 BL DELAY70
+	 BL CHECKPE1
+	 
+	 
      
-	 B    loop
-     
+BAC	 B    loop
+	 	 
+
+DELAY30 LDR R6, =2400000 ;x8
+LOP  SUBS R6, R6, #1
+	 CMP R6, #0
+	 BNE LOP
+	 LDR R6, =2400000
+	 BX LR
+	 
+DELAY70 LDR R3, =5600000
+MOP  SUBS R3, R3, #1
+	 CMP R3, #0
+	 BNE MOP
+	 LDR R3, =5600000
+ 	 BX LR
+
+		
+   
+HAA		
+		LDR R2, =GPIO_PORTF_DATA_R ;this is where I want to chagne the LED brightness
+		LDR R7, [R2]
+		CMP R7, #32
+		BNE UU
+
+
+CHANGE LDR R6, =800000
+MOPPP  LDR R3, =7200000
+	   CMP R6, R3
+	   BNE NN
+	 
+
+	 
+PREESED  ;This will now go do the duty cycle till there is another change
+		; BEQ CHANGE
+NN		 LDR R0, =GPIO_PORTE_DATA_R
+		 LDR R1, [R0]
+		 AND R1, R1, #0x02
+		 CMP R1, #2
+		 BEQ NN
+		 LDR R0, =GPIO_PORTE_DATA_R
+		 LDR R1, [R0]
+		 ORR R1, #0x04
+		 STR R1, [R0]
+		 ADD R2, R2, R6
+		 ADD R5, R5, R3
+YEE		 SUBS R2, R2, #1
+	     CMP R2, #0
+	     BNE YEE
+		 LDR R1, [R0]
+	     BIC R1, #0x04
+	     STR R1, [R0]
+NO		 SUBS R5, R5, #1
+	     CMP R5, #0
+		 BNE NO
+		 LDR R0, =GPIO_PORTE_DATA_R ;checking if the button is pressed
+		 LDR R1, [R0]
+		 AND R1, R1, #0x02
+		 CMP R1, #2
+		 BNE PREESED
+		 BL HERE
+		 
+
+CHECKPE1 LDR R0, =GPIO_PORTE_DATA_R
+		 LDR R1, [R0]
+		 AND R1, R1, #0x02
+		 CMP R1, #2 ; DO NOT CHANGE R10 R6 R3 R2 R5 PLS for the new one use like registers 
+		 BNE BAC
+HERE     LDR R2, =GPIO_PORTF_DATA_R
+		 LDR R7, [R2]
+		 CMP R7, #32
+		 BEQ HAA		; THIS IS BASCIALLY CHECKING IF THE LED NEEDS TO DO BREATHING 
+UU		 CMP R3, R10
+		 BEQ CHANGE
+		 LDR R8, =1600000 ;THIS ISCHANGING THE DUTY CYCLE
+		 ADD R6, R6, R8
+	     LDR R9, =1600000
+		 SUB R3, R3, R9
+		 BL PREESED	 ;THIS IS THE INFINITE LOOP THAT WE IMPLEMETN UNTIL THERE IS ANOTHER CHANGE
+		 
+	 
+
+
+
+
 
       
      ALIGN      ; make sure the end of this section is aligned
      END        ; end of file
-
