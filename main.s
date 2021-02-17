@@ -68,6 +68,14 @@ Start
 	 
 	 NOP ;waiting
 	 NOP
+
+	 LDR R1, =GPIO_PORTF_LOCK_R; unlocks the lock register
+	 LDR R0, =GPIO_LOCK_KEY
+	 STR R0, [R1]
+
+	; LDR R1, =GPIO_PORTF_CR_R ;i dont know if I need to enable commit
+	 ;MOV R0, #0xFF
+	 ;STR
 	 
 	 LDR R0, =GPIO_PORTE_AFSEL_R
    	 LDR R1, [R0]
@@ -121,20 +129,20 @@ loop
 
 	 
 	
-	 LDR R0, =GPIO_PORTE_DATA_R
-	 LDR R1, [R0]
-	 ORR R1, #0x04
-	 STR R1, [R0]
+	 LDR R0, =GPIO_PORTE_DATA_R ;R0 = [Data]
+	 LDR R1, [R0] ;R1 = Data
+	 ORR R1, #0x04 ;Turns PE2 on
+	 STR R1, [R0] ;store PE2 on
 	
 	 
-	 BL DELAY30
+	 BL DELAY30 ;wait 150ms
 	 
-	 LDR R1, [R0]
-	 BIC R1, #0x04
-	 STR R1, [R0]
+	 LDR R1, [R0] ;reload data
+	 BIC R1, #0x04 ;Clear PE2 bit
+	 STR R1, [R0] ;store data to turn PE2 off
 	 
-	 BL DELAY70
-	 BL CHECKPE1
+	 BL DELAY70 ;wait 350ms
+	 BL CHECKPE1 ;check for PE1 input
 	 
 	 
      
@@ -142,14 +150,14 @@ BAC	 B    loop
 	 	 
 
 DELAY30 LDR R6, =2400000 ;x8
-LOP  SUBS R6, R6, #1
+LOP  SUBS R6, R6, #1 ;subtract one until R6 == 0
 	 CMP R6, #0
 	 BNE LOP
 	 LDR R6, =2400000
 	 BX LR
 	 
 DELAY70 LDR R3, =5600000
-MOP  SUBS R3, R3, #1
+MOP  SUBS R3, R3, #1 ;subtract 1 until R3 == 0
 	 CMP R3, #0
 	 BNE MOP
 	 LDR R3, =5600000
@@ -157,11 +165,86 @@ MOP  SUBS R3, R3, #1
 
 		
    
-HAA		
-		LDR R2, =GPIO_PORTF_DATA_R ;this is where I want to chagne the LED brightness
+BREATHE		
+		LDR R2, =GPIO_PORTE_DATA_R ;this is where I want to chagne the LED brightness
 		LDR R7, [R2]
-		CMP R7, #32
+		ORR R7, #0x04 ;turn on light
+		STR R7, [R2]
+
+		LDR R7, # ;time that the LED will stay on during PWM
+		LDR R8, #11 ;time that the LED will stay off during PWM
+	REPEAT ;increase frequency until unable
+		LDR R2, =GPIO_PORTE_DATA_R 
+		LDR R7, [R2]
+		ORR R7, #4
+		STR R7, [R2]
+
+		BL DELAYON ;awit for H time
+
+		BIC R7, #4
+		STR R7, [R2]
+
+		BL DELAYOFF ;wait for L time
+
+		BL CHECK_PRESS ;check if PF4 is still pressed
+		ADD R8, #1 ;increase L
+		SUBS R7, #1 ;decrease H
+		CMP R7, #0 ;when it canot be slower then leave
+		BNE REPEAT
+
+	REPEAT1	;decrease frequency until visible by the human eye
+		LDR R2, =GPIO_PORTE_DATA_R 
+		LDR R7, [R2]
+		ORR R7, #4
+		STR R7, [R2]
+
+		BL DELAYON ;awit for H time
+
+		BIC R7, #4
+		STR R7, [R2]
+
+		BL DELAYOFF ;wait for L time
+
+		BL CHECK_PRESS ;check if PF4 is still pressed
+		SUBS R8, #1 ;decrease L
+		ADD R7, #1 ;increase H
+		CMP R8, #0 ;when it canot be slower then leave
+		BNE REPEAT
+
+
 		BNE UU
+
+CHECK_PRESS LDR R2, =GPIO_PORTF_DATA_R
+		LDR R7, [R2] ;check if PF4 is being pressed
+		AND R7, #32 ;isolate PF4
+		CMP R7, #32
+		BNE BAC ;go back to main engine if PF4 is not pressed
+		LDR R2, =GPIO_PORTE_DATA_R ;reload LED output
+		LDR R7, [R2]
+		BX LR
+
+DELAYON MOV R11, R7 ;put H in R11
+	AGAIN SUBS R11, #1 ;subtract 1 from H until it is no more
+	CMP R11, #0
+	BNE AGAIN
+
+	BX LR ;return
+
+DELAYOFF MOV R11, R8 ;put L in R11
+	AGAIN SUBS R11, #1 ;subtract 1 from L until it is no more
+	CMP R11, #0
+	BNE AGAIN
+
+	BX LR ;return
+
+SWITCH LDR R2, =GPIO_PORTE_DATA_R ;this is where I want to chagne the LED brightness
+		LDR R7, [R2]
+		AND R7, #0x4
+		BEQ TURN_OFF
+		ORR R7, #0x04 ;turn on light
+		B LEAVE
+		TURN_OFF BIC R7, #0x04
+		LEAVE STR R7, [R2]
 
 
 CHANGE LDR R6, =800000
@@ -201,29 +284,23 @@ NO		 SUBS R5, R5, #1
 		 BL HERE
 		 
 
-CHECKPE1 LDR R0, =GPIO_PORTE_DATA_R
-		 LDR R1, [R0]
-		 AND R1, R1, #0x02
-		 CMP R1, #2 ; DO NOT CHANGE R10 R6 R3 R2 R5 PLS for the new one use like registers 
-		 BNE BAC
-HERE     LDR R2, =GPIO_PORTF_DATA_R
-		 LDR R7, [R2]
-		 CMP R7, #32
-		 BEQ HAA		; THIS IS BASCIALLY CHECKING IF THE LED NEEDS TO DO BREATHING 
-UU		 CMP R3, R10
+CHECKPE1 LDR R0, =GPIO_PORTE_DATA_R ;R0 = [Data]
+		 LDR R1, [R0] ;R1 = Data
+		 AND R1, R1, #0x02 ;isolate PE1
+		 CMP R1, #2 ; check if PE1 is on DO NOT CHANGE R10 R6 R3 R2 R5 PLS for the new one use like registers
+		 BNE BAC ;return to main engine if PE1 is off
+HERE     LDR R2, =GPIO_PORTF_DATA_R ;R2 = PortF [Data]
+		 LDR R7, [R2] ;R7 = PortF Data
+		 CMP R7, #0x10000 ;
+		 BEQ BREATHE ; if PortF Data is x32 the breathe THIS IS BASCIALLY CHECKING IF THE LED NEEDS TO DO BREATHING 
+UU		 CMP R3, R10 ;compare 
 		 BEQ CHANGE
-		 LDR R8, =1600000 ;THIS ISCHANGING THE DUTY CYCLE
+		 LDR R8, =1600000 ;THIS IS CHANGING THE DUTY CYCLE
 		 ADD R6, R6, R8
 	     LDR R9, =1600000
 		 SUB R3, R3, R9
-		 BL PREESED	 ;THIS IS THE INFINITE LOOP THAT WE IMPLEMETN UNTIL THERE IS ANOTHER CHANGE
+		 BL PREESED	 ;THIS IS THE INFINITE LOOP THAT WE IMPLEMENT UNTIL THERE IS ANOTHER CHANGE
 		 
 	 
-
-
-
-
-
-      
      ALIGN      ; make sure the end of this section is aligned
      END        ; end of file
