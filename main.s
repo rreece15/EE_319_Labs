@@ -52,6 +52,9 @@ SYSCTL_RCGCGPIO_R  EQU 0x400FE608
        THUMB
 
        EXPORT  Start
+		   
+H DCD 267190
+L DCD 11
 
 Start
  ; TExaS_Init sets bus clock at 80 MHz
@@ -73,9 +76,10 @@ Start
 	 LDR R0, =GPIO_LOCK_KEY
 	 STR R0, [R1]
 
-	; LDR R1, =GPIO_PORTF_CR_R ;i dont know if I need to enable commit
-	 ;MOV R0, #0xFF
-	 ;STR
+	 LDR R0, =GPIO_PORTF_CR_R ;i dont know if I need to enable commit
+	 LDR R1, [R0]
+	 ORR R1, #0x10
+	 STR R1, [R0]
 	 
 	 LDR R0, =GPIO_PORTE_AFSEL_R
    	 LDR R1, [R0]
@@ -171,10 +175,10 @@ BREATHE
 		ORR R7, #0x04 ;turn on light
 		STR R7, [R2]
 
-		LDR R7, # ;time that the LED will stay on during PWM
-		LDR R8, #11 ;time that the LED will stay off during PWM
-	REPEAT ;increase frequency until unable
-		LDR R2, =GPIO_PORTE_DATA_R 
+		LDR R9, H ;time that the LED will stay on during PWM
+		LDR R8, L ;time that the LED will stay off during PWM
+REPEAT 
+		LDR R2, =GPIO_PORTE_DATA_R ;increase frequency until unable
 		LDR R7, [R2]
 		ORR R7, #4
 		STR R7, [R2]
@@ -188,12 +192,11 @@ BREATHE
 
 		BL CHECK_PRESS ;check if PF4 is still pressed
 		ADD R8, #1 ;increase L
-		SUBS R7, #1 ;decrease H
-		CMP R7, #11 ;when it canot be slower then leave
+		SUBS R9, #1 ;decrease H
+		CMP R9, #11 ;when it canot be slower then leave
 		BNE REPEAT
 
-	REPEAT1	;decrease frequency until visible by the human eye
-		LDR R2, =GPIO_PORTE_DATA_R 
+REPEAT1	LDR R2, =GPIO_PORTE_DATA_R ;decrease frequency until visible by the human eye
 		LDR R7, [R2]
 		ORR R7, #4
 		STR R7, [R2]
@@ -207,44 +210,43 @@ BREATHE
 
 		BL CHECK_PRESS ;check if PF4 is still pressed
 		SUBS R8, #1 ;decrease L
-		ADD R7, #1 ;increase H
+		ADD R9, #1 ;increase H
 		CMP R8, #11 ;when it canot be slower then leave
-		BNE REPEAT
+		BNE REPEAT1
 
-
-		BNE UU
+		B BREATHE
 
 CHECK_PRESS LDR R2, =GPIO_PORTF_DATA_R
 		LDR R7, [R2] ;check if PF4 is being pressed
 		AND R7, #32 ;isolate PF4
 		CMP R7, #32
-		BNE BAC ;go back to main engine if PF4 is not pressed
+		BNE UU ;go back to main engine if PF4 is not pressed
 		LDR R2, =GPIO_PORTE_DATA_R ;reload LED output
 		LDR R7, [R2]
 		BX LR
 
-DELAYON MOV R11, R7 ;put H in R11
-	AGAIN SUBS R11, #1 ;subtract 1 from H until it is no more
-	CMP R11, #0
-	BNE AGAIN
+DELAYON ADD R11, R7, #0 ;put H in R11
+AGAIN 	SUBS R11, #1 ;subtract 1 from H until it is no more
+		CMP R11, #0
+		BNE AGAIN
 
-	BX LR ;return
+		BX LR ;return
 
-DELAYOFF MOV R11, R8 ;put L in R11
-	AGAIN SUBS R11, #1 ;subtract 1 from L until it is no more
-	CMP R11, #0
-	BNE AGAIN
+DELAYOFF ADD R11, R8, #0 ;put L in R11
+AGAIN1 SUBS R11, #1 ;subtract 1 from L until it is no more
+		CMP R11, #0
+		BNE AGAIN1
 
-	BX LR ;return
+		BX LR ;return
 
 SWITCH LDR R2, =GPIO_PORTE_DATA_R ;this is where I want to chagne the LED brightness
-		LDR R7, [R2]
-		AND R7, #0x4
-		BEQ TURN_OFF
-		ORR R7, #0x04 ;turn on light
-		B LEAVE
-		TURN_OFF BIC R7, #0x04
-		LEAVE STR R7, [R2]
+			LDR R7, [R2]
+			AND R7, #0x4
+			BEQ TURN_OFF
+			ORR R7, #0x04 ;turn on light
+			B LEAVE
+TURN_OFF 	BIC R7, #0x04
+LEAVE 		STR R7, [R2]
 
 
 CHANGE LDR R6, =800000
