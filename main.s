@@ -189,7 +189,7 @@ BREATHE
 		BL CHECK_PRESS ;check if PF4 is still pressed
 		ADD R8, #1 ;increase L
 		SUBS R7, #1 ;decrease H
-		CMP R7, #0 ;when it canot be slower then leave
+		CMP R7, #11 ;when it canot be slower then leave
 		BNE REPEAT
 
 	REPEAT1	;decrease frequency until visible by the human eye
@@ -208,7 +208,7 @@ BREATHE
 		BL CHECK_PRESS ;check if PF4 is still pressed
 		SUBS R8, #1 ;decrease L
 		ADD R7, #1 ;increase H
-		CMP R8, #0 ;when it canot be slower then leave
+		CMP R8, #11 ;when it canot be slower then leave
 		BNE REPEAT
 
 
