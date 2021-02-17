@@ -170,6 +170,7 @@ MOP  SUBS R3, R3, #1 ;subtract 1 until R3 == 0
 		
    
 BREATHE		
+		BL CHECK_PRESS
 		LDR R2, =GPIO_PORTE_DATA_R ;this is where I want to chagne the LED brightness
 		LDR R7, [R2]
 		ORR R7, #0x04 ;turn on light
@@ -219,6 +220,7 @@ REPEAT1	LDR R2, =GPIO_PORTE_DATA_R ;decrease frequency until visible by the huma
 CHECK_PRESS LDR R2, =GPIO_PORTF_DATA_R
 		LDR R7, [R2] ;check if PF4 is being pressed
 		AND R7, #32 ;isolate PF4
+		EOR R7, R7, #0x10 ;using negative logic, so check if bit 5 is 0
 		CMP R7, #32
 		BNE UU ;go back to main engine if PF4 is not pressed
 		LDR R2, =GPIO_PORTE_DATA_R ;reload LED output
