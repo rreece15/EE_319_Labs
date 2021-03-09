@@ -1,318 +1,160 @@
-;****************** main.s ***************
-; Program written by: Valvano, solution
-; Date Created: 2/4/2017
-; Last Modified: 1/17/2021
-; Brief description of the program
-;   The LED toggles at 2 Hz and a varying duty-cycle
-; Hardware connections (External: One button and one LED)
-;  PE1 is Button input  (1 means pressed, 0 means not pressed)
-;  PE2 is LED output (1 activates external LED on protoboard)
-;  PF4 is builtin button SW1 on Launchpad (Internal) 
-;        Negative Logic (0 means pressed, 1 means not pressed)
-; Overall functionality of this system is to operate like this
-;   1) Make PE2 an output and make PE1 and PF4 inputs.
-;   2) The system starts with the the LED toggling at 2Hz,
-;      which is 2 times per second with a duty-cycle of 30%.
-;      Therefore, the LED is ON for 150ms and off for 350 ms.
-;   3) When the button (PE1) is pressed-and-released increase
-;      the duty cycle by 20% (modulo 100%). Therefore for each
-;      press-and-release the duty cycle changes from 30% to 70% to 70%
-;      to 90% to 10% to 30% so on
-;   4) Implement a "breathing LED" when SW1 (PF4) on the Launchpad is pressed:
-;      a) Be creative and play around with what "breathing" means.
-;         An example of "breathing" is most computers power LED in sleep mode
-;         (e.g., https://www.youtube.com/watch?v=ZT6siXyIjvQ).
-;      b) When (PF4) is released while in breathing mode, resume blinking at 2Hz.
-;         The duty cycle can either match the most recent duty-
-;         cycle or reset to 30%.
-;      TIP: debugging the breathing LED algorithm using the real board.
-; PortE device registers
-GPIO_PORTE_DATA_R  EQU 0x400243FC
-GPIO_PORTE_DIR_R   EQU 0x40024400
-GPIO_PORTE_AFSEL_R EQU 0x40024420
-GPIO_PORTE_DEN_R   EQU 0x4002451C
-; PortF device registers
-GPIO_PORTF_DATA_R  EQU 0x400253FC
-GPIO_PORTF_DIR_R   EQU 0x40025400
-GPIO_PORTF_AFSEL_R EQU 0x40025420
-GPIO_PORTF_PUR_R   EQU 0x40025510
-GPIO_PORTF_DEN_R   EQU 0x4002551C
-GPIO_PORTF_LOCK_R  EQU 0x40025520
-GPIO_PORTF_CR_R    EQU 0x40025524
-GPIO_LOCK_KEY      EQU 0x4C4F434B  ; Unlocks the GPIO_CR register
-SYSCTL_RCGCGPIO_R  EQU 0x400FE608
+// TableTrafficLight.c solution to EE319K Lab 5, spring 2021
+// Runs on TM4C123
+// Moore finite state machine to operate a traffic light.  
+// Daniel Valvano, Jonathan Valvano
+// January 17, 2021
 
-       IMPORT  TExaS_Init
-       THUMB
-       AREA    DATA, ALIGN=2
-;global variables go here
+/* 
+
+ Copyright 2021 by Jonathan W. Valvano, valvano@mail.utexas.edu
+    You may use, edit, run or distribute this file
+    as long as the above copyright notice remains
+ THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
+ OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
+ MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
+ VALVANO SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL,
+ OR CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
+ For more information about my classes, my research, and my books, see
+ http://users.ece.utexas.edu/~valvano/
+ */
+
+// east/west red light connected to PB5
+// east/west yellow light connected to PB4
+// east/west green light connected to PB3
+// north/south facing red light connected to PB2
+// north/south facing yellow light connected to PB1
+// north/south facing green light connected to PB0
+// pedestrian detector connected to PE2 (1=pedestrian present)
+// north/south car detector connected to PE1 (1=car present)
+// east/west car detector connected to PE0 (1=car present)
+// "walk" light connected to PF3-1 (built-in white LED)
+// "don't walk" light connected to PF1 (built-in red LED)
+#include <stdint.h>
+#include "SysTick.h"
+#include "TExaS.h"
+#include "../inc/tm4c123gh6pm.h"
 
 
-       AREA    |.text|, CODE, READONLY, ALIGN=2
-       THUMB
 
-       EXPORT  Start
-		   
-;H DCD 267190
-;L DCD 11
+void DisableInterrupts(void);
+void EnableInterrupts(void);
 
-Start
- ; TExaS_Init sets bus clock at 80 MHz
- 
-     BL  TExaS_Init
-	 
-; voltmeter, scope on PD3
- ; Initialization goes here
- 
- 	 LDR R0, =SYSCTL_RCGCGPIO_R ;R0 points to GPIO clock
-	 LDR R1, [R0] ;read SYSCTL_RCGCGPIO_R into R1
-	 ORR R1, #0x30 ;turn on Port E and Port F clock
-	 STR R1, [R0] ;write back to SYSCTL_RCGCGPIO_R
-	 
-	 NOP ;waiting
-	 NOP
+#define SYSCTL_PRGPIO_R         (*((volatile uint32_t *)0x400FEA08))
+#define SYSCTL_RCGCGPIO_R       (*((volatile uint32_t *)0x400FE608))
 
-	 LDR R1, =GPIO_PORTF_LOCK_R; unlocks the lock register
-	 LDR R0, =GPIO_LOCK_KEY
-	 STR R0, [R1]
-
-	 LDR R0, =GPIO_PORTF_CR_R ;i dont know if I need to enable commit
-	 LDR R1, [R0]
-	 ORR R1, #0x10
-	 STR R1, [R0]
-	 
-	 LDR R0, =GPIO_PORTE_AFSEL_R
-   	 LDR R1, [R0]
-   	 BIC R1, #0x06
-   	 STR R1, [R0]
+#define GPIO_PORTE_DEN_R        (*((volatile uint32_t *)0x4002451C))
+#define GPIO_PORTE_AMSEL_R      (*((volatile uint32_t *)0x40024528))
+#define GPIO_PORTE_PCTL_R       (*((volatile uint32_t *)0x4002452C))
+#define GPIO_PORTE_DATA_R       (*((volatile uint32_t *)0x400243FC))
+#define GPIO_PORTE_DIR_R        (*((volatile uint32_t *)0x40024400))
+#define GPIO_PORTE_AFSEL_R      (*((volatile uint32_t *)0x40024420))
 
 	
-	 LDR R0, =GPIO_PORTF_AFSEL_R
-   	 LDR R1, [R0]
-   	 BIC R1, #0x10
-   	 STR R1, [R0]
+#define GPIO_PORTB_DEN_R        (*((volatile uint32_t *)0x4000551C))
+#define GPIO_PORTB_AMSEL_R      (*((volatile uint32_t *)0x40005528))
+#define GPIO_PORTB_PCTL_R       (*((volatile uint32_t *)0x4000552C))
+#define GPIO_PORTB_DATA_R       (*((volatile uint32_t *)0x400053FC))
+#define GPIO_PORTB_DIR_R        (*((volatile uint32_t *)0x40005400))
+#define GPIO_PORTB_AFSEL_R      (*((volatile uint32_t *)0x40005420))
 
-	 
-	 LDR R0, =GPIO_PORTF_PUR_R
-   	 LDR R1, [R0]
-   	 ORR R1, #0x10
-   	 STR R1, [R0]
+	
+#define GPIO_PORTF_DEN_R        (*((volatile uint32_t *)0x4002551C))
+#define GPIO_PORTF_AMSEL_R      (*((volatile uint32_t *)0x40025528))
+#define GPIO_PORTF_PCTL_R       (*((volatile uint32_t *)0x4002552C))
+#define GPIO_PORTF_DATA_R       (*((volatile uint32_t *)0x400253FC))
+#define GPIO_PORTF_DIR_R        (*((volatile uint32_t *)0x40025400))
+#define GPIO_PORTF_AFSEL_R      (*((volatile uint32_t *)0x40025420))
+
+#define PB543210                (*((volatile uint32_t *)0x400050FC)) // bits 5-0
+#define PE210                   (*((volatile uint32_t *)0x4002401C)) // bits 2-0
+#define PF321                   (*((volatile uint32_t *)0x40025038)) // bits 3-1
+
+#define GoS 0
+#define WaitS 1
+#define Stop 2
+#define GoW 3
+#define WaitW 4
+#define Walk 5
+#define FlashOn 6
+#define FlashOff 7
 
 
-	 LDR R0, =GPIO_PORTE_DEN_R
-	 LDR R1, [R0] 
-	 ORR R1, #0x06 ;Enable PE1, PE2
-	 STR R1, [R0]
-	 
-	 LDR R0, =GPIO_PORTF_DEN_R
-	 LDR R1, [R0]
-	 ORR R1, #0x10 ;Enable PF4
-	 STR R1, [R0]
-	 
-	 LDR R0, =GPIO_PORTF_DIR_R
-	 LDR R1, [R0]
-	 BIC R1, #0x10 ;PF4 input
-	 STR R1, [R0]
-	 
-	 LDR R0, =GPIO_PORTE_DIR_R
-	 LDR R1, [R0]
-	 ORR R1, #0x04 ;PE2 output
-	 BIC R1, #0x02 ;PE1 input
-	 STR R1, [R0] 
-	 
-	 AND R2, R2, #0
-	 AND R5, R5, #0
-	 LDR R10, =800000
-  
+typedef struct State{
+	uint32_t outputB;
+	uint32_t outputF;
+	uint32_t delay;
+	uint32_t next[8];
+	
+}state;
+//If there are multiple buttons pressed, do one request, then the other one
+	state FSM[13] = {
+
+	{0x0C, 0x02, 400, {Stop, WaitS, GoS, WaitS, WaitS, WaitS, WaitS, WaitS }}, //GoS
+	{0x14, 0x02, 160, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitS
+	{0x24, 0x02, 80, {Stop, Walk, GoS, GoS, GoW, GoW, WaitS, GoS}}, //Stop
+	{0x21, 0x02, 400, {Stop, WaitW, WaitW, WaitW, GoW, WaitW, WaitW, WaitW }}, //GoW
+	{0x22, 0x02, 160, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitW
+	{0x24, 0x04, 400, {Stop, Walk, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Walk
+	{0x24, 0x02, 200, {FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff }}, //Flashon
+	{0x24, 0x00, 200, {FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Flashoff
+	{0x24, 0x02, 200, {FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff }}, //Flashon
+	{0x24, 0x00, 200, {FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Flashoff
+	{0x24, 0x02, 200, {FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff }}, //Flashon
+	{0x24, 0x00, 200, {FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Flashoff
+	{0x24, 0x02, 80, {Stop, Walk, GoS, GoS, GoW, GoW, WaitS, GoS}}}; //Stop
+
+
+void LogicAnalyzerTask(void){
+  UART0_DR_R = 0x80|GPIO_PORTB_DATA_R;
+	
+}
+
+int main(void){ volatile uint32_t delay;
+  DisableInterrupts();
+  //TExaS_Init(&LogicAnalyzerTask);
+   PLL_Init();     // PLL on at 80 MHz
+  SysTick_Init();   // Initialize SysTick for software waits
+// **************************************************
+// weird old bug in the traffic simulator
+// run next two lines on real board to turn on F E B clocks
+//  SYSCTL_RCGCGPIO_R |= 0x32;  // real clock register 
+//  while((SYSCTL_PRGPIO_R&0x32)!=0x32){};
+// run next two lines on simulator to turn on F E B clocks
+  SYSCTL_RCGC2_R |= 0x32;  // LM3S legacy clock register
+  delay = SYSCTL_RCGC2_R;
+// **************************************************
+	
+	
+ 
+  EnableInterrupts();
+//	SYSCTL_RCGCGPIO_R |= 0x33;
+	
+	
+	
+	GPIO_PORTB_DIR_R |= 63;
+	GPIO_PORTB_DEN_R |= 63;
+	
+	GPIO_PORTE_DIR_R &= ~0x07; 
+	GPIO_PORTE_DEN_R |= 0x07; 
+	
+	GPIO_PORTF_DIR_R |= 14;
+	GPIO_PORTF_DEN_R |= 14;
+	uint32_t x;
+	uint32_t input;
+	
+	x = GoS;
+	
+	
     
-
-     CPSIE  I    ; TExaS voltmeter, scope runs on interrupts
-loop  
-; main engine goes here
-; R6 WILL BE THE TIME IT IS ON WHILE R3 WILL BE TIME IT IS OFF
-
-	 
-	
-STS	 LDR R0, =GPIO_PORTE_DATA_R ;R0 = [Data]
-	 LDR R1, [R0] ;R1 = Data
-	 ORR R1, #0x04 ;Turns PE2 on
-	 STR R1, [R0] ;store PE2 on
-	
-	 
-	 BL DELAY30 ;wait 150ms
-	 
-	 LDR R1, [R0] ;reload data
-	 BIC R1, #0x04 ;Clear PE2 bit
-	 STR R1, [R0] ;store data to turn PE2 off
-	 
-	 BL DELAY70 ;wait 350ms
-	 BL CHECK   ;check for PE1 input
-	 
-	 
-     
-BAC	 B    loop
-	 	 
-
-DELAY30 LDR R6, =2400000 ;x8
-LOP  SUBS R6, R6, #1 ;subtract one until R6 == 0
-	 CMP R6, #0
-	 BNE LOP
-	 LDR R6, =2400000
-	 BX LR
-	 
-DELAY70 LDR R3, =5600000
-MOP  SUBS R3, R3, #1 ;subtract 1 until R3 == 0
-	 CMP R3, #0
-	 BNE MOP
-	 LDR R3, =5600000
- 	 BX LR
-
-		
-   
-BREATHE		
-		BL CHECK_PRESS
-		LDR R2, =GPIO_PORTE_DATA_R ;this is where I want to change the LED brightness
-		LDR R7, [R2]
-		ORR R7, #0x04 ;turn on light
-		STR R7, [R2]
-
-		LDR R9, =144000 ;time that the LED will stay on during PWM
-		LDR R8, =16000 ;time that the LED will stay off during PWM
-REPEAT 
-		LDR R2, =GPIO_PORTE_DATA_R ;increase frequency until unable
-		LDR R7, [R2]
-		ORR R7, #4
-		STR R7, [R2]
-
-		BL DELAYON ;awit for H time
-
-		BIC R7, #4
-		STR R7, [R2]
-
-		BL DELAYOFF ;wait for L time
-
-		BL CHECK_PRESS ;check if PF4 is still pressed
-		LDR R11, =2560
-		ADD R8, R11 ;increase L
-		SUBS R9, R11 ;decrease H
-		LDR R11, =16000
-		CMP R9, R11 ;when it canot be slower then leave
-		BNE REPEAT
-
-REPEAT1	LDR R2, =GPIO_PORTE_DATA_R ;decrease frequency until visible by the human eye
-		LDR R7, [R2]
-		ORR R7, #4
-		STR R7, [R2]
-
-		BL DELAYON ;awit for H time
-
-		BIC R7, #4
-		STR R7, [R2]
-
-		BL DELAYOFF ;wait for L time
-
-		BL CHECK_PRESS ;check if PF4 is still pressed
-		LDR R11, =2560
-		SUBS R8, R11 ;decrease L
-		ADD R9, R11 ;increase H
-		LDR R11, =16000
-		CMP R8, R11 ;when it canot be slower then leave
-		BNE REPEAT1
-
-		B BREATHE
-
-CHECK_PRESS LDR R2, =GPIO_PORTF_DATA_R
-		LDR R7, [R2] ;check if PF4 is being pressed
-		AND R7, R7, #0x10 ;using negative logic, so check if bit 5 is 0
-		;EOR R7, R7, #0x10
-		CMP R7, #0x10
-		BEQ STS ;go back to main engine if PF4 is not pressed
-		LDR R2, =GPIO_PORTE_DATA_R ;reload LED output
-		LDR R7, [R2]
-		BX LR
-
-DELAYON MOV R11, R9 ;put H in R11
-AGAIN 	SUBS R11, #1 ;subtract 1 from H until it is no more
-		CMP R11, #0
-		BNE AGAIN
-
-		BX LR ;return
-
-DELAYOFF MOV R11, R8 ;put L in R11
-AGAIN1 SUBS R11, #1 ;subtract 1 from L until it is no more
-		CMP R11, #0
-		BNE AGAIN1
-
-		BX LR ;return
-
-SWITCH LDR R2, =GPIO_PORTE_DATA_R ;this is where I want to chagne the LED brightness
-			LDR R7, [R2]
-			AND R7, #0x4
-			BEQ TURN_OFF
-			ORR R7, #0x04 ;turn on light
-			B LEAVE
-TURN_OFF 	BIC R7, #0x04
-LEAVE 		STR R7, [R2]
-
-
-CHANGE LDR R6, =800000
-MOPPP  LDR R3, =7200000
-	   CMP R6, R3
-	   BNE NN
-	 
-
-	 
-PREESED  LDR R2, =GPIO_PORTF_DATA_R ;R2 = PortF [Data]
-		 LDR R7, [R2] ;R7 = PortF Data
-		 AND R7, R7, #0x10
-		 CMP R7, #0 
-		 BEQ BREATHE
-NN		 LDR R0, =GPIO_PORTE_DATA_R
-		 LDR R1, [R0]
-		 AND R1, R1, #0x02
-		 CMP R1, #2
-		 BEQ NN
-		 LDR R0, =GPIO_PORTE_DATA_R
-		 LDR R1, [R0]
-		 ORR R1, #0x04
-		 STR R1, [R0]
-		 MOV R2, R6
-		 MOV R5, R3
-YEE		 SUBS R2, R2, #1
-	     CMP R2, #0
-	     BNE YEE
-		 LDR R1, [R0]
-	     BIC R1, #0x04
-	     STR R1, [R0]
-NO		 SUBS R5, R5, #1
-	     CMP R5, #0
-		 BNE NO
-		 LDR R0, =GPIO_PORTE_DATA_R ;checking if the button is pressed
-		 LDR R1, [R0]
-		 AND R1, R1, #0x02
-		 CMP R1, #2
-		 BNE PREESED
-		 BL HERE
-		 
-CHECK    LDR R2, =GPIO_PORTF_DATA_R ;R2 = PortF [Data]
-		 LDR R7, [R2] ;R7 = PortF Data
-		 AND R7, R7, #0x10
-		 ;EOR R7, R7, #0x10
-		 CMP R7, #0 
-		 BEQ BREATHE ; if PortF Data is on then breathe THIS IS BASCIALLY CHECKING IF THE LED NEEDS TO DO BREATHING 
-HERE	 LDR R0, =GPIO_PORTE_DATA_R ;R0 = [Data]
-		 LDR R1, [R0] ;R1 = Data
-		 AND R1, R1, #0x02 ;isolate PE1
-		 CMP R1, #2 ; check if PE1 is on DO NOT CHANGE R10 R6 R3 R2 R5 PLS for the new one use like registers
-		 BNE BAC ;return to main engine if PE1 is off
-UU		 CMP R3, R10 ;compare 
-		 BEQ CHANGE
-		 LDR R8, =1600000 ;THIS IS CHANGING THE DUTY CYCLE
-		 ADD R6, R6, R8
-	     LDR R9, =1600000
-		 SUB R3, R3, R9
-		 BL PREESED	 ;THIS IS THE INFINITE LOOP THAT WE IMPLEMENT UNTIL THERE IS ANOTHER CHANGE
-		 
-	 
-     ALIGN      ; make sure the end of this section is aligned
-     END        ; end of file
+  while(1){
+// output
+		PB543210 = FSM[x].outputB;
+		PF321 = FSM[x].outputF;
+// wait
+		SysTick_Wait10ms(FSM[x].delay);
+// input
+		input = PE210;
+// next	
+		x = FSM[x].next[input];
+  }
+}
