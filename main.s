@@ -98,23 +98,23 @@ typedef struct State{
 //If there are multiple buttons pressed, do one request, then the other one
 	state FSM[17] = {
 
-	{0x21, 0x02, 400, {WaitS, WaitS, GoS, WaitS, WaitS, WaitS, WaitS, WaitS }}, //GoS
-	{0x22, 0x02, 200, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitS
-	{0x24, 0x02, 75, {Stop, GoW, GoS, GoSTemp, Walk, Walk, Walk, Walk}}, //Stop
-	{0x0C, 0x02, 400, {WaitW, GoW, WaitW, WaitW, WaitW, WaitW, WaitW, WaitW }}, //GoW
-	{0x14, 0x02, 200, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitW
-	{0x24, 0x04, 400, {FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1 }}, //Walk
-	{0x24, 0x02, 200, {FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1 }}, //Flashon1
-	{0x24, 0x00, 200, {FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2 }}, //Flashoff1
-	{0x24, 0x02, 200, {FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2 }}, //Flashon2
-	{0x24, 0x00, 200, {FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3 }}, //Flashoff2
-	{0x24, 0x02, 200, {FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3 }}, //Flashon3
-	{0x24, 0x00, 200, {Stop, GoW, GoS, GoSTemp, Walk, GoW, GoS, GoSTemp }}, //Flashoff3
-  {0x21, 0x02, 400, {WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp}}, //GoSTemp
-	{0x22, 0x02, 200, {StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp}}, //WaitSTemp
-	{0x24, 0x02, 75, {GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp}}, //StopTemp
-	{0x0C, 0x02, 400, {WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp}}, //GoWTemp
-	{0x14, 0x02, 200, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop}}}; //WaitWTemp
+	{0x21, 0x02, 100, {WaitS, WaitS, GoS, WaitS, WaitS, WaitS, WaitS, WaitS }}, //GoS
+	{0x22, 0x02, 50, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitS
+	{0x24, 0x02, 25, {Stop, GoW, GoS, GoSTemp, Walk, Walk, Walk, Walk}}, //Stop
+	{0x0C, 0x02, 100, {WaitW, GoW, WaitW, WaitW, WaitW, WaitW, WaitW, WaitW }}, //GoW
+	{0x14, 0x02, 50, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitW
+	{0x24, 0x04, 100, {FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1 }}, //Walk
+	{0x24, 0x02, 50, {FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1 }}, //Flashon1
+	{0x24, 0x00, 50, {FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2 }}, //Flashoff1
+	{0x24, 0x02, 50, {FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2 }}, //Flashon2
+	{0x24, 0x00, 50, {FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3 }}, //Flashoff2
+	{0x24, 0x02, 50, {FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3 }}, //Flashon3
+	{0x24, 0x00, 50, {Stop, GoW, GoS, GoSTemp, Walk, GoW, GoS, GoSTemp }}, //Flashoff3
+  {0x21, 0x02, 100, {WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp}}, //GoSTemp
+	{0x22, 0x02, 50, {StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp}}, //WaitSTemp
+	{0x24, 0x02, 25, {GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp}}, //StopTemp
+	{0x0C, 0x02, 100, {WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp}}, //GoWTemp
+	{0x14, 0x02, 50, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop}}}; //WaitWTemp
 
 
 void LogicAnalyzerTask(void){
