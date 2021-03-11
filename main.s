@@ -75,8 +75,17 @@ void EnableInterrupts(void);
 #define GoW 3
 #define WaitW 4
 #define Walk 5
-#define FlashOn 6
-#define FlashOff 7
+#define FlashOn1 6
+#define FlashOff1 7
+#define FlashOn2 8
+#define FlashOff2 9
+#define FlashOn3 10
+#define FlashOff3 11
+#define GoSTemp 12
+#define WaitSTemp 13
+#define StopTemp 14
+#define GoWTemp 15
+#define WaitWTemp 16
 
 
 typedef struct State{
@@ -87,21 +96,25 @@ typedef struct State{
 	
 }state;
 //If there are multiple buttons pressed, do one request, then the other one
-	state FSM[13] = {
+	state FSM[17] = {
 
-	{0x0C, 0x02, 400, {Stop, WaitS, GoS, WaitS, WaitS, WaitS, WaitS, WaitS }}, //GoS
-	{0x14, 0x02, 160, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitS
-	{0x24, 0x02, 80, {Stop, Walk, GoS, GoS, GoW, GoW, WaitS, GoS}}, //Stop
-	{0x21, 0x02, 400, {Stop, WaitW, WaitW, WaitW, GoW, WaitW, WaitW, WaitW }}, //GoW
-	{0x22, 0x02, 160, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitW
-	{0x24, 0x04, 400, {Stop, Walk, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Walk
-	{0x24, 0x02, 200, {FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff }}, //Flashon
-	{0x24, 0x00, 200, {FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Flashoff
-	{0x24, 0x02, 200, {FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff }}, //Flashon
-	{0x24, 0x00, 200, {FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Flashoff
-	{0x24, 0x02, 200, {FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff, FlashOff }}, //Flashon
-	{0x24, 0x00, 200, {FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn, FlashOn }}, //Flashoff
-	{0x24, 0x02, 80, {Stop, Walk, GoS, GoS, GoW, GoW, WaitS, GoS}}}; //Stop
+	{0x21, 0x02, 400, {WaitS, WaitS, GoS, WaitS, WaitS, WaitS, WaitS, WaitS }}, //GoS
+	{0x22, 0x02, 200, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitS
+	{0x24, 0x02, 75, {Stop, GoW, GoS, GoSTemp, Walk, Walk, Walk, Walk}}, //Stop
+	{0x0C, 0x02, 400, {WaitW, GoW, WaitW, WaitW, WaitW, WaitW, WaitW, WaitW }}, //GoW
+	{0x14, 0x02, 200, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop }}, //WaitW
+	{0x24, 0x04, 400, {FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1, FlashOn1 }}, //Walk
+	{0x24, 0x02, 200, {FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1, FlashOff1 }}, //Flashon1
+	{0x24, 0x00, 200, {FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2, FlashOn2 }}, //Flashoff1
+	{0x24, 0x02, 200, {FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2, FlashOff2 }}, //Flashon2
+	{0x24, 0x00, 200, {FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3, FlashOn3 }}, //Flashoff2
+	{0x24, 0x02, 200, {FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3, FlashOff3 }}, //Flashon3
+	{0x24, 0x00, 200, {Stop, GoW, GoS, GoSTemp, Walk, GoW, GoS, GoSTemp }}, //Flashoff3
+  {0x21, 0x02, 400, {WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp, WaitSTemp}}, //GoSTemp
+	{0x22, 0x02, 200, {StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp, StopTemp}}, //WaitSTemp
+	{0x24, 0x02, 75, {GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp, GoWTemp}}, //StopTemp
+	{0x0C, 0x02, 400, {WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp, WaitWTemp}}, //GoWTemp
+	{0x14, 0x02, 200, {Stop, Stop, Stop, Stop, Stop, Stop, Stop, Stop}}}; //WaitWTemp
 
 
 void LogicAnalyzerTask(void){
@@ -141,7 +154,6 @@ int main(void){ volatile uint32_t delay;
 	GPIO_PORTF_DEN_R |= 14;
 	uint32_t x;
 	uint32_t input;
-	
 	x = GoS;
 	
 	
